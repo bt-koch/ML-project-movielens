@@ -1,0 +1,524 @@
+---
+output:
+  pdf_document:
+    number_sections: true
+header-includes:
+    - \hypersetup{colorlinks = false,pdfborder={1 1 1}}
+    - \usepackage{float}
+---
+
+<!-- Setup -------------------------------------------------------------------->
+
+```{r setup, include=FALSE}
+# RMarkdown settings
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.width=5, fig.height=2.5, fig.align="center") 
+knitr::opts_chunk$set(fig.pos = "H", out.extra = "")
+
+# required libraries
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+if(!require(magrittr)) install.packages("magrittr", repos = "http://cran.us.r-project.org")
+
+library(tidyverse)
+library(knitr)
+library(magrittr)
+
+# load data from r-script
+load("rmd-input.RData")
+
+# preprocessing
+rmse_results[,2] <- round(rmse_results[,2], 5)
+```
+
+<!-- Title Page + TOC --------------------------------------------------------->
+\newpage
+\vspace*{4cm}
+\begin{center}
+{\Large Data Science: Capstone \\ (HarvardX PH125.9x)}
+\end{center}
+\vspace*{1.5cm}
+\begin{center}
+\thispagestyle{empty}
+{\LARGE \bf Capstone Project I}\\[1.5cm]
+{\Huge MovieLens }\\[1.5cm]
+{\bf \Large Build a movie recommendation system}\\[1cm]
+{\Large February 2021}\\[1.5cm]
+{\large submitted by Bela Koch} \\[2.5cm]
+\end{center}
+
+\newpage
+\tableofcontents
+\newpage
+
+<!-- Report ------------------------------------------------------------------->
+
+# Introduction
+
+Within this project, a recommendation system is developed that attempts to predict
+the rating an user would give a movie in terms of number of stars, whereby one to
+five starts can be awarded. A one-star rating indicates the worst possible rating,
+while a five-star rating corresponds to the best possible rating.
+
+The data used in this project is provided from the
+[GroupLens research lab](https://grouplens.org), who have generated their own
+database with over 20 million ratings for over 27'000 movies by more than
+138'000 users as part of their MovieLens project. For computational reasons, the
+[10M version of the MovieLens dataset](https://grouplens.org/datasets/movielens/10m/)
+is used for the development of the model. Following data is provided in the
+downloaded dataset:
+
+```{r echo=FALSE}
+data.frame(variable = names(edx),
+           class = sapply(edx, typeof),
+           first_values = sapply(edx, function(x) paste0(head(x, n=3),  collapse = ", ")),
+           row.names = NULL) %>%
+  kable()
+```
+
+
+\newpage
+# Analysis: developing the model
+
+## Residual mean squared error (RMSE)
+
+The metric used to evaluate the model while developing is the residual mean
+squared error (RMSE), which is defined as
+
+$$ RMSE = \sqrt{\frac{1}{N} \sum_{u,i}(\hat{y}_{u,i}-y_{u,i})^2} $$
+
+whereby $y_{u,i}$ denotes the rating of movie $i$ by user $u$ while $\hat{y}_{u,i}$
+corresponds to the prediction of $y_{u,i}$. $N$ stands for the number of user/movie
+combination and it is summed over all these combinations. The RMSE is the typical
+error that is made when predicting a movie rating and can therefore be interpreted
+similarly to a standard deviation. If the RMSE exceeds a value of one, a typical
+error of one star is made when estimating the rating of a movie. Consequently, the
+goal when developing the model used for the recommendation system is to minimize
+the RMSE.
+
+
+## Benchmark model
+
+As reference value the simplest possible model is built which predicts the same
+rating for each movie regardless of the user and explains all the differences
+between ratings by random variation. Mathematically, the model is defined as
+follows:
+
+$$ Y_{u,i} = \mu + \epsilon_{u,i} $$
+
+whereby $\epsilon_{u,i}$ indicates independent errors sampled from the same 
+distribution centered at $0$ and $\mu$ indicates the \textit{true} rating for 
+all movies. Since the least squares estimate of $\mu$ which minimizes RMSE is the arithmetic
+mean, the predicted $\mu$ ($\hat{\mu}$) is defined as:
+
+$$ \hat{\mu} = \frac{1}{N} \sum^N_{u,i} \text{rating}_{u,i} $$
+
+When applying the benchmark model on the test set, a RMSE of `r rmse_results[1,]$rmse`
+is reached:
+
+```{r echo=FALSE}
+rmse_results[1,] %>%
+  kable()
+```
+
+## Adding movie effects
+
+The relatively high RMSE in the benchmark model is expected, as it is assumed that
+there are no differences between all movies in all aspects. Purely intuitively and
+also from personal experience, however, it can be assumed that movies are of
+varying quality. This assumption is consistent with the data used for the analysis:
+
+```{r echo=FALSE, fig.cap="Average rating of a movie"}
+edx %>%
+  group_by(movieId) %>%
+  summarize(mean = mean(rating, na.rm=T)) %>%
+  ggplot(aes(mean)) +
+  geom_histogram(binwidth = 0.1) +
+  labs(x = "Average rating of movie", y = "Number of movies") +
+  theme_bw(base_size = 9)
+```
+
+Hence, the benchmark model can be extended by including a movie specific effect,
+i.e. by adding the average rating of the corresponding movie ($b_i$):
+
+$$Y_{u,i} = \mu + b_i + \epsilon_{u,i}$$
+
+As we can see, the movie effect varies greatly for the different movies:
+
+```{r echo=FALSE, fig.cap="Movie effects"}
+qplot(b_i, data = b_i_train, bins = 30, color = I("black")) + theme_bw(base_size = 9)
+```
+
+After including the movie effects, a RMSE of `r rmse_results[2,]$rmse`
+is reached:
+
+```{r echo=FALSE}
+rmse_results[1:2,] %>%
+  kable()
+```
+
+## Adding user effects
+
+As we have seen in previous section, RMSE could be reduced by considering the
+variability in quality between different movies. However, it was assumed that
+all users rate the movies in the same manner. But it is likely that the rating
+pattern is user-dependent - some users will be more critical and will on average
+rate movies lower than other users. The data used for the analysis supports this
+assumption:
+
+```{r echo=FALSE, fig.cap="Average rating given by user"}
+edx %>%
+  group_by(userId) %>%
+  summarize(mean = mean(rating, na.rm=T)) %>%
+  ggplot(aes(mean)) +
+  geom_histogram(binwidth = 0.1) +
+  labs(x = "Average rating of user", y = "Number of users") +
+  theme_bw(base_size = 9)
+```
+
+Thus, in a next step, the model was extendend to include user effects ($b_u$):
+
+$$Y_{u,i} = \mu + b_i + b_u + \epsilon_{u,i}$$
+
+Again, a variation in the rating of the different users can be seen:
+
+```{r echo=FALSE, fig.cap="User effects"}
+qplot(b_u, data = b_u_train, bins = 30, color = I("black")) + theme_bw(base_size = 9)
+```
+
+After including the user effects, a RMSE of `r rmse_results[3,]$rmse`
+is reached:
+
+```{r echo=FALSE}
+rmse_results[1:3,] %>%
+  kable()
+```
+
+## Adding decade of publication effects
+
+Many movie fans have a preferred decade in which they claim that the best movies
+were released. Furthermore, although no demographic data on users is available,
+it is possible that a certain group of users is over-represented in terms of year
+of birth. It could be that this group rates the movies of their childhood and
+youth higher for reasons of nostalgia, what would lead to biases. Another possible
+reason for varying quality in movies over the decades could be, that in earlier
+decades the production of a film was associated with higher entry barriers, which
+is why only large movie studios with sufficient resources could produce movies.
+As technology has progressed, the barriers to entry for movie production have
+been lowered, which could also potentially have a negative impact on the average
+quality of movies. The data used for this analysis shows, that movies from earlier
+decades are actually rated higher on average:
+
+```{r echo=FALSE, fig.cap="Average rating over decades"}
+edx %>%
+  group_by(decade) %>%
+  summarize(mean = mean(rating, na.rm=T)) %>%
+  ggplot(aes(x = decade, y = mean)) + 
+  geom_line() +
+  theme_bw(base_size = 9)
+```
+
+Note that the movies are classified by decade rather than by the exact year of
+publication, as it is assumed that the possible factors influencing the rating
+of a movie remain constant over a decade and thus data with less noise can be
+used to estimate the ratings. This should also reduce the possibility of
+overfitting.
+
+The average ratings of the movies are shown below, classified according to the
+exact date of publication. The same trend is discernible, but with considerably
+more noise.
+
+```{r echo=FALSE, fig.cap="Average rating over years of publication"}
+edx %>%
+  group_by(year_of_pub) %>%
+  summarize(mean = mean(rating, na.rm=T)) %>%
+  ggplot(aes(x = year_of_pub, y = mean)) + 
+  geom_line() +
+  theme_bw(base_size = 9) +
+  labs(x = "year of publication")
+```
+
+With the inclusion of the effect of the decade ($b_d$), the model can now be represented
+as follows:
+
+$$Y_{u,i} = \mu + b_i + b_u + \epsilon_{u,i}$$
+
+The following graph shows the distribution of the decade effect:
+
+```{r echo=FALSE, fig.cap="Decade effects"}
+qplot(b_d, data = b_d_train, bins = 30, color = I("black")) + theme_bw(base_size = 9)
+```
+
+After including the decade effects, a RMSE of `r rmse_results[4,]$rmse`
+is reached:
+
+```{r echo=FALSE}
+rmse_results[1:4,] %>%
+  kable()
+```
+
+
+## Adding genre effects
+
+Another influential effect could be the genre to which a movie belongs. For example,
+there may be genres that are generally more popular and therefore movies belonging
+to this genre receive a higher rating in average. Indeed, as we can see in the
+data, there is variability of the average rating per genre:
+
+```{r echo=FALSE, fig.cap="Average rating of genre"}
+edx %>%
+  group_by(genres) %>%
+  summarize(mean = mean(rating, na.rm=T)) %>%
+  ggplot(aes(mean)) +
+  geom_histogram(binwidth = 0.1) +
+  labs(x = "Average rating of genre", y = "Number of movie in genre category") +
+  theme_bw(base_size = 9)
+```
+
+For this reason, the genre effect ($b_g$) is included in the model:
+
+$$Y_{u,i} = \mu + b_i + b_u + b_g + \epsilon_{u,i}$$
+
+The distribution of the genre effect can be seen in the graph below.
+
+```{r echo=FALSE, fig.cap="Genre effects"}
+qplot(b_g, data = b_g_train, bins = 30, color = I("black")) + theme_bw(base_size = 9)
+```
+
+After including the decade effects, a RMSE of `r rmse_results[5,]$rmse`
+is reached:
+
+```{r echo=FALSE}
+rmse_results[1:5,] %>%
+  kable()
+```
+
+
+## Regularization
+
+A major weakness of the previous model is that it does not take into account
+how much ratings where made per movie. Some movies have been rated by very few
+users,occasionally by only one user. This leads to more uncertainty and thus
+also to biases. More concretely, large values of the effect of $b_i$ (positive
+and negative) due to biases are more likely with small sample sizes per movie.
+Consequently, an estimator based on a small sample size should be less trusted.
+
+As Figure \ref{fig:rel-prop} confirms, the relative proportions of the group of
+movies with fewer ratings are greater when the average rating is more extreme:
+
+
+```{r echo=FALSE, fig.cap="\\label{fig:rel-prop}Average rating by number of ratings", fig.width=8, fig.height=4}
+edx %>%
+  group_by(movieId) %>%
+  mutate(n = n(), m = mean(rating)) %>%
+  ungroup() %>%
+  group_by(gr=cut(m, breaks = seq(0, 5.5, 0.5))) %>%
+  mutate(gr = recode(gr, "(0,0.5]" = "0.5")) %>%
+  mutate(class = ifelse(n < 50, "n<50", "n>=50")) %>%
+  mutate(prc = ifelse(class == "n<50", sum(class == "n<50")/n(), 1-sum(class == "n<50")/n())) %>%
+  select(gr, class, prc) %>%
+  unique() %>%
+  ggplot(aes(x = gr, y = prc, fill = class)) +
+  geom_bar(position = "stack", stat = "identity") +
+  theme_bw(base_size = 9) +
+  scale_fill_manual(values=c("orangered3", "gray45"), name = "number of ratings (n)") +
+  xlab("average rating of movie") +
+  ylab("relative proportion")
+```
+
+For this reason, regularization is applied in a next step, which allows to
+penalize large estimates (in both directions) that are formed using small
+sample sizes to constrain the total variability of the effect sizes. More
+concretely, instead of minimizing the least squares equation, we minimize the
+least squares equation extended by a penalty term. Therefore, the following
+formula must be minimized for the estimation of the movie effects:
+
+$$\frac{1}{N}\sum_{u,i}(y_{u,i} - \mu - b_i)^2 + \underbrace{\lambda \sum_i b^2_i}_{\text{penalty term}}$$
+
+By means of calculus it can be shown that the values of $b_i$ which minimize the
+above formula are: 
+
+$$\hat{b}_i(\lambda) = \frac{1}{\lambda + n_i} \sum^{n_i}_{u=1} (Y_{u,i} - \hat{\mu})$$
+
+whereby $n_i$ denotes the number of ratings made for movie $i$. If the dependence
+of this formula on $n_i$ and the penalty $\lambda$, it can be seen that the
+desired effect is achieved. With a large value of $n_i$, which is associated
+with a stable estimate of $b_i$, the penalty $\lambda$ has little effect since
+$n_i + \lambda \approx n_i$. With a small value of $n_i$, which is associated
+with a biased or a relatively uncertain estimate of $b_i$, the penalty $\lambda$
+shrinks the estimate of $b_i$ towards 0, resulting in a more conservative 
+estimate. Note that when increasing the penalty $\lambda$, the estimate of $b_i$
+shrinks more leading to a more conservative estimate. The penalty $\lambda$ is
+a tuning parameter and is chosen using cross validation.
+
+Regularization can also be applied to the previously mentioned effects, resulting
+in the following minimization problems:
+
+*user effects:*
+
+$$\frac{1}{N}\sum_{u,i}(y_{u,i} - \mu - b_i - b_u)^2 + \lambda \left( \sum_i b^2_i + \sum_u b^2_u \right)$$
+
+*decade effects:*
+
+$$\frac{1}{N}\sum_{u,i}(y_{u,i} - \mu - b_i - b_u)^2 + \lambda \left( \sum_i b^2_i + \sum_u b^2_u + \sum_d b^2_d \right)$$
+
+Using regularization following RMSEs are reached:
+
+```{r echo=FALSE}
+rmse_results[2:5,] %>%
+  cbind(., rmse_results[6:9,]) %>%
+  setNames(c("", "rmse", "", "rmse")) %>%
+  kable(row.names = F)
+  
+```
+
+## Matrix factorization
+
+So far, no attention has been paid to the fact that both certain groups of movies
+and certain groups of users have similar rating patterns. With the use of matrix
+factorization it is attempted to capture these patterns and describe them by 
+factors. The idea behind matrix factorization is to approximate the whole rating
+matrix $\boldsymbol{R}_{m \times n}$ by the product of two matrices of lower
+dimensions ($\boldsymbol{P}_{n \times k}$ and $\boldsymbol{Q}_{n \times k}$)
+so that
+
+$$\boldsymbol{R} \approx \boldsymbol{PQ'}$$
+
+whereby $\boldsymbol{P}$ stores the user factors while $\boldsymbol{Q}$ stores
+the item factors, i.e. the movie factors. The rating matrix $\boldsymbol{R}$ can
+subsequently be used to predict the rating user $u$ would give to movie $i$. In
+more formal terms, if $p_u$ is the $u$-th row of $\boldsymbol{Q}$ and if $q_i$
+is the $i$-th row of $\boldsymbol{Q}$, then the prediction of the rating user $u$
+would give to movie $i$ would be $p_uq_i'$. A typical solution for $\boldsymbol{P}$
+and $\boldsymbol{Q}$ results from the following optimization problem:
+
+$$\min_{P,Q} \sum_{(u,i) \in R} \left[f(p_u,q_i;r_{u,i}) + \mu_P||p_u||_1 
++ \mu_Q||q_i||_1 + \frac{\lambda_P}{2}||p_u||^2_2 + \frac{\lambda_Q}{2}||p_i||^2_2 \right]$$
+
+whereby $(u,i)$ are the locations of observed entries in $\boldsymbol{R}$ while
+$(u,i) \in R$ indicates that rating $r_i$ is available, $f$ is the loss function
+used, $||.||$ is the euclidean norm, $r_{u,i}$ is the observed rating and $\mu_P$,
+$\mu_Q$, $\lambda_P$ and $\lambda_Q$ are penalty parameters used as regularization
+to avoid overfitting.
+
+To apply matrix factorization for this project, the `recosystem` package is used,
+which is a R package for recommender systems using parallel matrix factorization.
+The package allows to execute parameter optimization within a reasonable amount
+of time and with the relevant data stored in the RAM.
+
+After tuning the model parameters with all default settings - except increasing
+the number of threads to four for parallel computing to increase performance - 
+following parameters were selected to minimize the optimization problem:
+
+Parameter     | Selected value
+:------------ | ------------:
+$\mu_P$       | `r tune_options$min$costp_l1`
+$\lambda_P$   | `r tune_options$min$costp_l2`
+$\mu_Q$       | `r tune_options$min$costq_l1`
+$\lambda_Q$   | `r tune_options$min$costq_l2`
+
+Please note that when increasing the number of threads for parallel computing
+(setting `nthread > 1`) the training result is not guaranteed to be reproducible,
+even if a random seed is set. Since the default loss function for real-valued
+matrix factorization is the squared error which is the sum of all the squared
+differences between the observed values and the estimated values. Thus, the 
+following minimisation problem with the parameters listed in the table above 
+is relevant for the process of solving for $\boldsymbol{P}$ and $\boldsymbol{Q}$,
+that corresponds to model training:
+
+$$\min_{P,Q} \sum_{(u,i) \in R} \left[(p_uq'_i - r_{u,i})^2 + \mu_P||p_u||_1 
++ \mu_Q||q_i||_1 + \frac{\lambda_P}{2}||p_u||^2_2 + \frac{\lambda_Q}{2}||p_i||^2_2 \right]$$
+
+After training the model with 100 iterations, a RMSE of `r rmse_results[10,]$rmse`
+is reached: 
+
+```{r echo=FALSE}
+rmse_results %>%
+  kable()
+```
+
+
+<!-- ```{r echo=FALSE, fig.width=12, fig.height=4} -->
+<!-- # create matrix where columns = movieId and rows = userId with filtered train data -->
+<!-- matrix_mf <- train_set %>% -->
+<!--   group_by(movieId) %>% -->
+<!--   filter(n() >= 100) %>% -->
+<!--   ungroup() %>% -->
+<!--   group_by(userId) %>% -->
+<!--   filter(n() >= 100) %>% -->
+<!--   ungroup() %>% -->
+<!--   select(userId, movieId, rating) %>% -->
+<!--   spread(movieId, rating) %>% -->
+<!--   as.matrix() -->
+
+<!-- # userId as row name -->
+<!-- rownames(matrix_mf) <- matrix_mf[,1] -->
+<!-- matrix_mf <- matrix_mf[,-1] -->
+
+<!-- # title as column name -->
+<!-- titles <- train_set %>% select(movieId, title) %>% distinct() -->
+<!-- colnames(matrix_mf) <- with(titles, title[match(colnames(matrix_mf), movieId)]) -->
+
+<!-- # calculate residuals -->
+<!-- matrix_mf <- sweep(matrix_mf, 2, colMeans(matrix_mf, na.rm = TRUE)) -->
+<!-- matrix_mf <- sweep(matrix_mf, 1, rowMeans(matrix_mf, na.rm = TRUE)) -->
+
+<!-- m1 <- "Star Wars: Episode IV - A New Hope (a.k.a. Star Wars) (1977)" -->
+<!-- m11 <- "Star Wars: Episode V - The Empire Strikes Back (1980)" -->
+<!-- m2 <- "Star Trek: The Motion Picture (1979)" -->
+
+<!-- m3 <- "Resident Evil (2002)" -->
+<!-- m4 <- "Shaun of the Dead (2004)" -->
+
+<!-- m5 <- "Catch and Release (2006)" -->
+<!-- m6 <- "Definitely, Maybe (2008)" -->
+
+<!-- m7 <- "Godfather, The (1972)" -->
+<!-- m71 <- "Godfather: Part II, The (1974)" -->
+<!-- m8 <- "Sleepless in Seattle (1993)" -->
+
+<!-- a <- "Godfather, The (1972)" -->
+<!-- b <- "Godfather: Part II, The (1974)" -->
+<!-- c <- "Goodfellas (1990)" -->
+<!-- d <- "You've Got Mail (1998)" -->
+<!-- e <- "Sleepless in Seattle (1993)" -->
+
+
+<!-- # test <- cor(matrix_mf, use="pairwise.complete") -->
+
+
+<!-- p1 <- qplot(matrix_mf[,m1], matrix_mf[,m11]) -->
+<!-- p2 <- qplot(matrix_mf[,m1], matrix_mf[,m2]) -->
+<!-- p3 <- qplot(matrix_mf[,d], matrix_mf[,e]) -->
+
+<!-- gridExtra::grid.arrange(p1,p2,p3,ncol=3) -->
+
+<!-- x <- matrix_mf[, c(m1,m11,m2,m3,m4,m5,m6,m7,m71,m8)] -->
+<!-- colnames(x) <- c("star wars", "sw2", "star trek", "resident", "shaun", "catch", "definitely", "godfather", "godf2", "sleepless") -->
+<!-- cor(x, use="pairwise.complete") -->
+
+<!-- xdf <- as.data.frame(test) -->
+<!-- xdf <- xdf[xdf < -0.8] -->
+<!-- xdf <- xdf[is.na(xdf) == F] -->
+<!-- ```  -->
+
+
+
+\newpage
+# Results: applying the model
+
+Since matrix factorization clearly outperforms the linear models and the
+regularized linear models according to the `edx` dataset, the matrix
+factorization model with the tuned parameters is chosen to be applied to the
+`validation` dataset.
+
+<!-- ```{r} -->
+
+<!-- result <- expand.grid(user = unique(validation$userId), movie = unique(validation$movieId)) -->
+
+
+<!-- ggplot(predicted_ratings, aes(x = )) -->
+<!-- ``` -->
+
+\newpage
+# Conclusion
