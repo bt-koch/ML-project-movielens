@@ -24,3 +24,8 @@ application.
 ## Results
 
 describe (briefly) the results
+
+## About
+
+This project was created as part of the last course of the [Professional Certificate
+in Data Science by HarvardX via edx.org](https://www.edx.org/professional-certificate/harvardx-data-science?index=product&queryID=c3c7b56387e49eea61ef0a3406c52d37&position=1).
