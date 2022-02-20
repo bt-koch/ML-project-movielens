@@ -420,17 +420,6 @@ validation_reco <- data_memory(
 )
 
 # 2.4.2 Tune model parameters ----
-# tune_options <- r$tune(train_reco, opts = list(
-#   dim = c(10, 20, 30), # n of latent factors
-#   costp_l2 = c(0.01, 0.1), #m -> lambda_P
-#   costq_l2 = c(0.01, 0.1), #m -> lambda_Q
-#   costp_l1 = 0, #d -> mu_P
-#   costq_l1 = 0, #d -> mu_Q
-#   lrate    = c(0.01, 0.1), #m
-#   nthread  = 4, #m -> vielleicht besser 1 (wie d) sodass resultate gleich aber ev weniger performant
-#   niter    = 10, #m
-#   verbose  = TRUE)
-#   )
 tune_options <- r$tune(train_reco, opts = list(
   dim = c(10, 20),
   costp_l1 = c(0.01, 0.1),
@@ -463,11 +452,9 @@ rmse_results <- rbind(rmse_results,
 
 validation$prediction <- r$predict(validation_reco, out_memory())
 predicted_ratings <- validation$prediction
-# predicted_ratings <- r$predict(validation_reco, out_memory())
 
 rmse_validation <- RMSE(validation$rating, predicted_ratings)
 rmse_validation
-
 
 validation %>%
   select(userId, movieId, prediction) %>%
@@ -480,20 +467,16 @@ validation %>%
   theme_bw(base_size = 22)
 
 # =============================================================================.
-# 4.  ----
+# 4. End of script ----
 # =============================================================================.
 
 # -----------------------------------------------------------------------------.
 # 4.1 save relevant data ----
 # -----------------------------------------------------------------------------.
 save(list = c("edx", "rmse_results", "b_i", "b_i_train", "b_u", "b_u_train",
-              "b_d", "b_d_train", "b_g", "b_g_train", "tune_options"),
+              "b_d", "b_d_train", "b_g", "b_g_train", "tune_options",
+              "rmse_validation"),
      file = "rmd-input.RData")
-
-# -----------------------------------------------------------------------------.
-# 4.2 print relevant information in console ----
-# -----------------------------------------------------------------------------.
-
 
 # =============================================================================.
 # End of code
