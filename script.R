@@ -5,7 +5,7 @@
 
 # Clean environment
 rm(list=ls()); invisible(gc())
-
+start_time <- Sys.time()
 
 # Load required packages
 if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
@@ -38,12 +38,14 @@ rmse_results <- data.frame(model = character(), rmse = numeric())
 # -----------------------------------------------------------------------------.
 # 1.1 download file ----
 # -----------------------------------------------------------------------------.
+cat("\nDownload data...")
 dl <- tempfile()
 download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
 
 # -----------------------------------------------------------------------------.
 # 1.2 wrangle downloaded data ----
 # -----------------------------------------------------------------------------.
+cat("\nWrangle data...")
 
 # get rating data
 ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
@@ -128,6 +130,7 @@ test_set <- edx[test_index,]
 # -----------------------------------------------------------------------------.
 # 2.2 develop the model ----
 # -----------------------------------------------------------------------------.
+cat("\nTrain linear models...")
 
 # 2.2.1 benchmark model ----
 # overall average, here estimate for rating
@@ -237,6 +240,8 @@ b_g_train <- b_g
 # -----------------------------------------------------------------------------.
 # 2.3 build regularized models ----
 # -----------------------------------------------------------------------------.
+cat("\nTrain regularized models...")
+
 lambdas <- seq(0, 10, 0.1)
 
 # 2.3.1 regularized movie effects ----
@@ -391,6 +396,7 @@ rmse_results <- rbind(
 # -----------------------------------------------------------------------------.
 # 2.4 Matrix factorization ----
 # -----------------------------------------------------------------------------.
+cat("\nTrain matrix factorization model...")
 
 # 2.4.1 Preprocessing ----
 # construct a recommender system object
@@ -442,9 +448,10 @@ rmse_results <- rbind(rmse_results,
                       data.frame(model = "matrix factorization", rmse = rmse_mf))
 
 
-# # =============================================================================.
+# =============================================================================.
 # 3. apply the developed model ----
 # =============================================================================.
+message("\nApply selected model on validation set...")
 
 # -----------------------------------------------------------------------------.
 # 3.1 use selected model with validation set ----
@@ -473,6 +480,8 @@ validation %>%
 # -----------------------------------------------------------------------------.
 # 4.1 save relevant data ----
 # -----------------------------------------------------------------------------.
+cat("\nSave some data...")
+
 save(list = c("edx", "rmse_results", "b_i", "b_i_train", "b_u", "b_u_train",
               "b_d", "b_d_train", "b_g", "b_g_train", "tune_options",
               "rmse_validation"),
@@ -481,3 +490,6 @@ save(list = c("edx", "rmse_results", "b_i", "b_i_train", "b_u", "b_u_train",
 # =============================================================================.
 # End of code
 # =============================================================================.
+message("\nScript successfully finished")
+end_time <- Sys.time()
+end_time - start_time
