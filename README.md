@@ -6,11 +6,11 @@ The goal of this project is to create a movie recommendation system using the
 
 ## Data
 
-The dataset contains 10000054 ratings and 95580 tags applied to 10681 movies by
-71567 users of the online movie recommender service [MovieLens](https://movielens.org).
+The data set contains 10'000'054 ratings and 95'580 tags applied to 10'681 movies by
+71'567 users of the online movie recommender service [MovieLens](https://movielens.org).
 
 Users were selected at random for inclusion. All users selected had rated at
-least 20 movies. Unlike previous MovieLens data sets, no demographic information
+least 20 movies. Unlike other MovieLens data sets, no demographic information
 is included. Each user is represented by an id, and no other information is provided.
 
 ## Models
@@ -23,7 +23,10 @@ application.
 
 ## Results
 
-describe (briefly) the results
+Matrix factorization provided the best predictions of movie ratings with the test
+data, which is why this method was chosen for use with the validation data. The
+ratings range from 1 (worst rating) to 5 (best rating). The model provides
+predictions of user ratings with a Root Mean Square Error of around 0.795.
 
 ## About
 
