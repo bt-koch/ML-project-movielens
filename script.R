@@ -245,6 +245,7 @@ cat("\nTrain regularized models...")
 lambdas <- seq(0, 10, 0.1)
 
 # 2.3.1 regularized movie effects ----
+# train and predict movie effects with all lambdas
 rmse_bi_reg <- sapply(lambdas, function(lambda){
   
   b_i <- train_set %>%
@@ -262,8 +263,10 @@ rmse_bi_reg <- sapply(lambdas, function(lambda){
 
 qplot(lambdas, rmse_bi_reg)
 
+# chose the lambda which minimizes the rmse
 lambda_bi <- lambdas[which.min(rmse_bi_reg)]
 
+# add rmse to results
 rmse_results <- rbind(
   rmse_results,
   data.frame(
@@ -462,16 +465,6 @@ predicted_ratings <- validation$prediction
 
 rmse_validation <- RMSE(validation$rating, predicted_ratings)
 rmse_validation
-
-validation %>%
-  select(userId, movieId, prediction) %>%
-  filter(userId %in% 1:100 & movieId %in% 1:100) %>%
-  ggplot(aes(x = movieId, y = userId, fill = prediction)) +
-  geom_raster() +
-  scale_fill_gradient("Rating", low = "#d6e685", high = "#1e6823") +
-  xlab("Movie ID") + ylab("User ID") +
-  coord_fixed() +
-  theme_bw(base_size = 22)
 
 # =============================================================================.
 # 4. End of script ----
