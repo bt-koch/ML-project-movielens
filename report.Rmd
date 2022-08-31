@@ -3,11 +3,11 @@ output:
   pdf_document:
     number_sections: true
 header-includes:
-    - \hypersetup{colorlinks = false,pdfborder={1 1 1}}
     - \usepackage{float}
 ---
 
 <!-- Setup -------------------------------------------------------------------->
+\hypersetup{colorlinks = false,pdfborder={1 1 1}}
 
 ```{r setup, include=FALSE}
 # =============================================================================.
@@ -48,7 +48,7 @@ rmse_results[,2] <- round(rmse_results[,2], 5)
 {\LARGE \bf Capstone Project I}\\[1.5cm]
 {\Huge MovieLens }\\[1.5cm]
 {\bf \Large Build a movie recommendation system}\\[1cm]
-{\Large February 2021}\\[1.5cm]
+{\Large February 2022}\\[1.5cm]
 {\large submitted by Bela Koch} \\[2.5cm]
 \end{center}
 
